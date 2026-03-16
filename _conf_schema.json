@@ -96,6 +96,11 @@
         "type": "object",
         "hint": "定时自动分析相关配置，包括启用开关、分析时间和并发数",
         "items": {
+            "report_receiver": {
+                "type": "string",
+                "description": "报告接收人",
+                "hint": "报告接收人，使用/sid获取UMO填写；注意发送到群时UMO第三部分应是群ID。【可能需要去掉UID以及残留的前后缀（下划线、百分号、#号）】"
+            },
             "enable_auto_analysis": {
                 "type": "bool",
                 "description": "启用定时自动分析",

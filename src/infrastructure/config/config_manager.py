@@ -140,6 +140,10 @@ class ConfigManager:
         """获取是否启用自动分析"""
         return self._get_group("auto_analysis").get("enable_auto_analysis", False)
 
+    def get_report_receiver(self) -> str:
+        """获取报告接收人"""
+        return self._get_group("auto_analysis").get("report_receiver", "")
+
     def get_output_format(self) -> str:
         """获取输出格式"""
         return self._get_group("basic").get("output_format", "image")

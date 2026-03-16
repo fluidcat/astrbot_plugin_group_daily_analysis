@@ -42,12 +42,18 @@ class ReportDispatcher:
         )
 
         success = False
+        receiver_id, _platform_id = group_id, platform_id
+        if umo:=self.config_manager.get_report_receiver():
+            _platform_id, message_type, session_id = umo.split(":", 2)
+            receiver_id = session_id or receiver_id
+            _platform_id = _platform_id or platform_id
+
         if output_format == "image":
-            success = await self._dispatch_image(group_id, analysis_result, platform_id)
+            success = await self._dispatch_image(receiver_id, analysis_result, _platform_id)
         elif output_format == "pdf":
-            success = await self._dispatch_pdf(group_id, analysis_result, platform_id)
+            success = await self._dispatch_pdf(receiver_id, analysis_result, _platform_id)
         else:
-            success = await self._dispatch_text(group_id, analysis_result, platform_id)
+            success = await self._dispatch_text(receiver_id, analysis_result, _platform_id)
 
         if success:
             logger.info(f"[{trace_id}] 群 {group_id} 的报告分发成功")
