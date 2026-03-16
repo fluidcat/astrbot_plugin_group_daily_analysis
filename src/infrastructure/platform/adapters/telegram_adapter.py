@@ -6,6 +6,8 @@ Telegram 平台适配器
 """
 
 import asyncio
+import base64
+import os
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -54,7 +56,7 @@ class TelegramAdapter(PlatformAdapter):
 
     def __init__(self, bot_instance: Any, config: dict | None = None):
         super().__init__(bot_instance, config)
-        self._cached_client: ExtBot | None = None
+        self._cached_client: Any = None
         self._context: Context | None = None
 
         # 机器人自身 ID（用于消息过滤）
@@ -118,7 +120,7 @@ class TelegramAdapter(PlatformAdapter):
         return list(set(groups))
 
     @property
-    def _telegram_client(self) -> "ExtBot | None":
+    def _telegram_client(self) -> Any:
         """
         懒加载获取 Telegram 客户端
 
@@ -132,14 +134,14 @@ class TelegramAdapter(PlatformAdapter):
             return None
 
         # 路径 A: bot 本身就是 ExtBot
-        if isinstance(self.bot, ExtBot):
+        if ExtBot is not None and isinstance(self.bot, ExtBot):
             self._cached_client = self.bot
             return self._cached_client
 
         # 路径 B: bot.client
         if hasattr(self.bot, "client"):
             client = self.bot.client
-            if isinstance(client, ExtBot):
+            if ExtBot is not None and isinstance(client, ExtBot):
                 self._cached_client = client
                 return self._cached_client
 
@@ -158,10 +160,6 @@ class TelegramAdapter(PlatformAdapter):
 
         logger.warning("无法从 bot_instance 获取 Telegram 客户端")
         return None
-
-    def _init_capabilities(self) -> PlatformCapabilities:
-        """返回 Telegram 平台能力声明"""
-        return TELEGRAM_CAPABILITIES
 
     # ==================== IMessageRepository ====================
 
@@ -231,7 +229,8 @@ class TelegramAdapter(PlatformAdapter):
                 for record in history_records:
                     if before_id_int is not None:
                         try:
-                            if int(record.id) >= before_id_int:
+                            rec_id = getattr(record, "id", None)
+                            if rec_id is not None and int(rec_id) >= before_id_int:
                                 continue
                         except (TypeError, ValueError):
                             pass
@@ -299,9 +298,9 @@ class TelegramAdapter(PlatformAdapter):
         # 尝试从 bot 实例获取
         if hasattr(self.bot, "meta") and callable(self.bot.meta):
             try:
-                meta = self.bot.meta()
+                meta = self.bot.meta()  # type: ignore
                 if hasattr(meta, "id"):
-                    return meta.id
+                    return str(getattr(meta, "id", "telegram"))
             except Exception:
                 pass
         return "telegram"
@@ -521,7 +520,8 @@ class TelegramAdapter(PlatformAdapter):
 
         try:
             chat_id, message_thread_id = self._parse_group_id(group_id)
-            photo_obj: Any = None
+            file_obj: Any = None
+            is_temp_obj = False
 
             kwargs: dict[str, Any] = {"chat_id": chat_id}
             if message_thread_id:
@@ -529,9 +529,18 @@ class TelegramAdapter(PlatformAdapter):
             if caption:
                 kwargs["caption"] = caption
 
-            # 处理本地文件或 URL
-            if image_path.startswith(("http://", "https://")):
-                # 远程 URL - 需要下载后发送
+            # 1. 统一处理输入源 (Base64 / URL / Local File)
+            if image_path.startswith("base64://"):
+                data = base64.b64decode(image_path[len("base64://") :])
+                file_obj = BytesIO(data)
+                is_temp_obj = True
+            elif image_path.startswith("data:"):
+                parts = image_path.split(",", 1)
+                if len(parts) == 2:
+                    data = base64.b64decode(parts[1])
+                    file_obj = BytesIO(data)
+                    is_temp_obj = True
+            elif image_path.startswith(("http://", "https://")):
                 try:
                     import aiohttp
 
@@ -541,29 +550,44 @@ class TelegramAdapter(PlatformAdapter):
                         ) as resp:
                             if resp.status == 200:
                                 data = await resp.read()
-                                kwargs["photo"] = BytesIO(data)
+                                file_obj = BytesIO(data)
+                                is_temp_obj = True
                             else:
-                                # 尝试直接发送 URL
-                                kwargs["photo"] = image_path
+                                file_obj = image_path  # 尝试直接发 URL
                 except Exception as e:
                     logger.warning(f"[Telegram] 下载图片失败，尝试直接发送: {e}")
-                    kwargs["photo"] = image_path
-
-                photo_obj = kwargs["photo"]
-                await client.send_photo(**kwargs)
+                    file_obj = image_path
             else:
                 # 本地文件
-                with open(image_path, "rb") as f:
-                    kwargs["photo"] = f
-                    await client.send_photo(**kwargs)
+                if os.path.exists(image_path):
+                    file_obj = open(image_path, "rb")
+                    is_temp_obj = True
+                else:
+                    file_obj = image_path
 
-            if isinstance(photo_obj, BytesIO):
-                photo_obj.close()
+            # 2. 发送图片
+            kwargs["photo"] = file_obj
+            try:
+                await client.send_photo(**kwargs)
+            finally:
+                if is_temp_obj and hasattr(file_obj, "close"):
+                    file_obj.close()
 
             return True
+
         except Exception as e:
-            if "photo_obj" in locals() and isinstance(photo_obj, BytesIO):
-                photo_obj.close()
+            err_msg = str(e)
+            # Photo_invalid_dimensions: Telegram 报错提示图片长宽比例或总尺寸不合规
+            if (
+                "Photo_invalid_dimensions" in err_msg
+                or "Photo invalid dimensions" in err_msg
+            ):
+                logger.warning("[Telegram] 图片尺寸超限，正在尝试以文件形式发送...")
+                # 构造一个更有意义的文件名
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                fn = f"analysis_report_{group_id}_{ts}.png"
+                return await self.send_file(group_id, image_path, filename=fn)
+
             logger.error(f"[Telegram] 发送图片失败: {e}")
             return False
 
@@ -580,22 +604,48 @@ class TelegramAdapter(PlatformAdapter):
             return False
 
         try:
-            import os
-
             chat_id, message_thread_id = self._parse_group_id(group_id)
+            file_obj: Any = None
+            is_temp_obj = False
 
             kwargs: dict[str, Any] = {"chat_id": chat_id}
             if message_thread_id:
                 kwargs["message_thread_id"] = int(message_thread_id)
-            if filename:
-                kwargs["filename"] = filename
-            else:
-                kwargs["filename"] = os.path.basename(file_path)
 
-            # 打开文件
-            with open(file_path, "rb") as f:
-                kwargs["document"] = f
+            # 1. 统一处理输入源 (Base64 / Local File)
+            if file_path.startswith("base64://"):
+                data = base64.b64decode(file_path[len("base64://") :])
+                file_obj = BytesIO(data)
+                is_temp_obj = True
+                if not filename:
+                    filename = "file.png"
+            elif file_path.startswith("data:"):
+                parts = file_path.split(",", 1)
+                if len(parts) == 2:
+                    data = base64.b64decode(parts[1])
+                    file_obj = BytesIO(data)
+                    is_temp_obj = True
+                    if not filename:
+                        filename = "file.png"
+            elif os.path.isfile(file_path):
+                file_obj = open(file_path, "rb")
+                is_temp_obj = True
+                if not filename:
+                    filename = os.path.basename(file_path)
+            else:
+                # 可能是 URL 或缓存 ID
+                file_obj = file_path
+                if not filename:
+                    filename = "file"
+
+            kwargs["document"] = file_obj
+            kwargs["filename"] = filename
+
+            try:
                 await client.send_document(**kwargs)
+            finally:
+                if is_temp_obj and hasattr(file_obj, "close"):
+                    file_obj.close()
 
             return True
         except Exception as e:
