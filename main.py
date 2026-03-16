@@ -8,6 +8,7 @@ QQ群日常分析插件
 import asyncio
 import os
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig
@@ -26,6 +27,9 @@ from .src.application.services.analysis_application_service import (
 )
 from .src.application.services.message_processing_service import (
     MessageProcessingService,
+)
+from .src.application.services.wechat857_message_processing_service import (
+    WeChat857MessageProcessingService,
 )
 from .src.domain.services.analysis_domain_service import AnalysisDomainService
 from .src.domain.services.incremental_merge_service import IncrementalMergeService
@@ -67,6 +71,7 @@ class GroupDailyAnalysis(Star):
     incremental_merge_service: IncrementalMergeService
     analysis_service: AnalysisApplicationService
     message_processing_service: MessageProcessingService
+    wechat857_message_processing_service: WeChat857MessageProcessingService
     template_command_service: TemplateCommandService
     telegram_template_preview_handler: TelegramTemplatePreviewHandler
     template_preview_router: TemplatePreviewRouter
@@ -116,6 +121,8 @@ class GroupDailyAnalysis(Star):
         self.message_processing_service = MessageProcessingService(
             context, self.telegram_group_registry
         )
+        # 微信857消息处理服务
+        self.wechat857_message_processing_service = WeChat857MessageProcessingService(context)
         self.template_command_service = TemplateCommandService(
             plugin_root=os.path.dirname(__file__)
         )
@@ -258,6 +265,7 @@ class GroupDailyAnalysis(Star):
             self.telegram_group_registry = None  # type: ignore
             self.template_preview_router = None  # type: ignore
             self.telegram_template_preview_handler = None  # type: ignore
+            self.wechat857_message_processing_service = None  # type: ignore
 
             logger.info("QQ群日常分析插件资源清理完成")
 
@@ -280,6 +288,27 @@ class GroupDailyAnalysis(Star):
             logger.warning(f"[Telegram] 消息存储失败: {e}")
         except Exception as e:
             logger.error(f"[Telegram] 消息存储异常: {e}", exc_info=True)
+
+    # ==================== 微信857 消息拦截器 ====================
+
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    async def intercept_wechat857_messages(self, event: AstrMessageEvent):
+        """
+        拦截微信857群消息并存储到数据库
+
+        委托给 WeChat857MessageProcessingService 处理
+        """
+        try:
+            # 检查是否是微信平台
+            platform_type = event.get_platform_name()
+            if platform_type != "wechat857":
+                return
+
+            await self.wechat857_message_processing_service.process_message(event)
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"[WeChat857] 消息存储失败: {e}")
+        except Exception as e:
+            logger.error(f"[WeChat857] 消息存储异常: {e}", exc_info=True)
 
     async def get_telegram_seen_group_ids(
         self, platform_id: str | None = None
@@ -445,8 +474,8 @@ class GroupDailyAnalysis(Star):
         """
         group_id = self._get_group_id_from_event(event)
         platform_id = self._get_platform_id_from_event(event)
-
-        if not group_id:
+        self.context.cron_manager.scheduler.add_job(self.auto_scheduler._run_auto_analysis, next_run_time=datetime.now())
+        if not group_id or True:
             yield event.plain_result("❌ 请在群聊中使用此命令")
             return
 

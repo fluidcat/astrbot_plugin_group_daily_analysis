@@ -89,5 +89,12 @@ def _register_adapters():
     except ImportError:
         pass
 
+    try:
+        from .adapters.wx857_adapter import Wx857Adapter
+
+        PlatformAdapterFactory.register("wechat857", Wx857Adapter)
+    except ImportError:
+        pass
+
 
 _register_adapters()
