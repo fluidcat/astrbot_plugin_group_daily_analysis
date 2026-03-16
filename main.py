@@ -490,8 +490,8 @@ class GroupDailyAnalysis(Star):
         """
         group_id = self._get_group_id_from_event(event)
         platform_id = self._get_platform_id_from_event(event)
-        self.context.cron_manager.scheduler.add_job(self.auto_scheduler._run_auto_analysis, next_run_time=datetime.now())
-        if not group_id or True:
+
+        if not group_id:
             yield event.plain_result("❌ 请在群聊中使用此命令")
             return
 
@@ -782,6 +782,13 @@ class GroupDailyAnalysis(Star):
             logger.error(f"安装 PDF 依赖失败: {e}", exc_info=True)
             yield event.plain_result(f"❌ 安装过程中出现错误: {str(e)}")
 
+    @filter.command("开始自动分析", alias={"analysis_settings"})
+    @filter.permission_type(PermissionType.ADMIN)
+    async def start_auto_analysis(self, event: AstrMessageEvent):
+        self.context.cron_manager.scheduler.add_job(
+            self.auto_scheduler._run_auto_analysis, next_run_time=datetime.now())
+        yield event.plain_result("自动分析已开始")
+
     @filter.command("分析设置", alias={"analysis_settings"})
     @filter.permission_type(PermissionType.ADMIN)
     async def analysis_settings(self, event: AstrMessageEvent, action: str = "status"):
@@ -796,7 +803,12 @@ class GroupDailyAnalysis(Star):
         - incremental_debug: 切换增量分析立即报告模式（调试用）
         """
         group_id = self._get_group_id_from_event(event)
+        async for ret in self.analysis_group_settings(event, group_id, action):
+            yield ret
 
+    @filter.command("指定群分析设置", alias={"group_analysis"})
+    @filter.permission_type(PermissionType.ADMIN)
+    async def analysis_group_settings(self, event: AstrMessageEvent, group_id: str, action: str = "status"):
         if not group_id:
             yield event.plain_result("❌ 请在群聊中使用此命令")
             return
@@ -946,7 +958,7 @@ class GroupDailyAnalysis(Star):
     async def _handle_settings_enable(self, event: AstrMessageEvent, group_id: str):
         """协助逻辑：处理启用设置的分支逻辑"""
         mode = self.config_manager.get_group_list_mode()
-        target_id = event.unified_msg_origin or group_id
+        target_id = (event.unified_msg_origin or group_id) if self._get_group_id_from_event(event) == group_id else group_id
 
         if mode == "whitelist":
             glist = self.config_manager.get_group_list()
@@ -979,7 +991,7 @@ class GroupDailyAnalysis(Star):
     async def _handle_settings_disable(self, event: AstrMessageEvent, group_id: str):
         """协助逻辑：处理禁用设置的分支逻辑"""
         mode = self.config_manager.get_group_list_mode()
-        target_id = event.unified_msg_origin or group_id
+        target_id = (event.unified_msg_origin or group_id) if self._get_group_id_from_event(event) == group_id else group_id
 
         if mode == "whitelist":
             glist = self.config_manager.get_group_list()
