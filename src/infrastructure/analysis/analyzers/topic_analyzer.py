@@ -360,9 +360,9 @@ class TopicAnalyzer(BaseAnalyzer):
                 # 填充 contributor_ids
                 # 过滤掉非数字的脏数据 (LLM 偶尔会发疯)
                 valid_ids = [
-                    str(uid).strip() for uid in raw_ids if str(uid).strip().isdigit()
+                    str(uid).strip() for uid in raw_ids if uid in id_to_nickname
                 ]
-                topic.contributor_ids = valid_ids
+                topic.contributor_ids = raw_ids
 
                 # 映射回昵称用于显示
                 resolved_names = []
@@ -370,13 +370,14 @@ class TopicAnalyzer(BaseAnalyzer):
                     # 尝试从当前批次消息映射
                     name = id_to_nickname.get(uid)
                     if not name:
-                        # 尝试去全局配置里找 (e.g. 机器人自己)
+                        # 尝试去全局配置里找 (e.g. 机器人自己)＠
                         bot_ids = self.config_manager.get_bot_self_ids()
                         if uid in bot_ids:
                             name = "Bot"
                         else:
                             name = uid  # Fallback to ID
                     resolved_names.append(name)
+                    topic.detail = topic.detail.replace(f"[{uid}]", f"「{name}」")
 
                 topic.contributors = resolved_names
 
