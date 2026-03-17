@@ -122,7 +122,7 @@ class GroupDailyAnalysis(Star):
             context, self.telegram_group_registry
         )
         # 微信857消息处理服务
-        self.wechat857_message_processing_service = WeChat857MessageProcessingService(context)
+        self.wechat857_message_processing_service = WeChat857MessageProcessingService(context, self)
         self.template_command_service = TemplateCommandService(
             plugin_root=os.path.dirname(__file__)
         )
@@ -805,6 +805,20 @@ class GroupDailyAnalysis(Star):
         group_id = self._get_group_id_from_event(event)
         async for ret in self.analysis_group_settings(event, group_id, action):
             yield ret
+
+    @filter.command("可分析群列表", alias={"group_analysis"})
+    @filter.permission_type(PermissionType.ADMIN)
+    async def list_group(self, event: AstrMessageEvent):
+        infos = []
+        for pid, adapter in self.bot_manager.get_all_adapters().items():
+            gids = await adapter.get_group_list()
+            infos.append(f"机器人 {pid} 的群列表:")
+            for gid in gids:
+                ginfo = await adapter.get_group_info(gid)
+                infos.append(f"{ginfo.group_id} - {ginfo.group_name}")
+            infos.append(f"\n")
+
+        yield event.plain_result("\n".join(infos).strip())
 
     @filter.command("指定群分析设置", alias={"group_analysis"})
     @filter.permission_type(PermissionType.ADMIN)

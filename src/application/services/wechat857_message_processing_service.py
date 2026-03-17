@@ -6,13 +6,14 @@
 2. 解析发送者信息
 3. 存储消息历史
 """
-
+import asyncio
 import re
 from collections import Counter
 
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.star import Context
 from astrbot.core import logger
+from astrbot.core.star import Star
 
 
 class WeChat857MessageProcessingService:
@@ -21,9 +22,13 @@ class WeChat857MessageProcessingService:
 
     负责处理微信消息事件并存储到 message_history_manager。
     """
+    RECORD_GROUP_KV_KEY = f"wechat857_record_group"
 
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, plugin_instance: Star):
         self.context = context
+        self.plugin_instance = plugin_instance
+        self.platform_group_cache = dict()
+        self._lock = asyncio.Lock()
 
     async def process_message(self, event: AstrMessageEvent) -> None:
         """
@@ -38,6 +43,7 @@ class WeChat857MessageProcessingService:
         """
         # 1. 获取群组 ID（必需）
         group_id = self._get_group_id_from_event(event)
+        platform_id = event.get_platform_id()
         if not group_id:
             raise ValueError("无法获取群组 ID，拒绝存储消息")
 
@@ -63,7 +69,7 @@ class WeChat857MessageProcessingService:
 
         # 6. 存储到 message_history_manager
         await self.context.message_history_manager.insert(
-            platform_id=event.get_platform_id(),
+            platform_id=platform_id,
             user_id=group_id,
             content={"type": "user", "message": message_parts},
             sender_id=sender_id,
@@ -73,6 +79,21 @@ class WeChat857MessageProcessingService:
         logger.debug(
             f"[WeChat857] 已缓存群 {group_id} 的消息 (发送者: {sender_name})"
         )
+
+        # 缓存有消息存储的群
+        _cache = (await self.get_cache_group()).get(platform_id)
+        if not _cache or group_id not in _cache:
+            async with self._lock:
+                self.platform_group_cache.setdefault(platform_id, {})[group_id] = {}
+                await self.plugin_instance.put_kv_data(self.RECORD_GROUP_KV_KEY, self.platform_group_cache)
+
+    async def get_cache_group(self) -> dict:
+        if not self.platform_group_cache:
+            async with self._lock:
+                gs = await self.plugin_instance.get_kv_data(self.RECORD_GROUP_KV_KEY, {})
+                self.platform_group_cache.update(gs)
+
+        return self.platform_group_cache
 
     def _get_group_id_from_event(self, event: AstrMessageEvent) -> str | None:
         """从消息事件中安全获取群组 ID"""

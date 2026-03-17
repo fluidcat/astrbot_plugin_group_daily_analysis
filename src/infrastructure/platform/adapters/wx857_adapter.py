@@ -367,12 +367,8 @@ class Wx857Adapter(PlatformAdapter):
         """
         获取群组列表
         """
-        contact_list = await self.bot.get_contract_list()
-        # 获取 ContactUsernameList 中后缀为 @chatroom 的 ID
-        return [
-            username for username in contact_list.get('ContactUsernameList', [])
-            if username.endswith('@chatroom')
-        ]
+        gids = (await self._plugin_instance.wechat857_message_processing_service.get_cache_group()).get(self._platform_id, {})
+        return list(gids.keys()) if gids else []
 
     async def get_member_list(self, group_id: str) -> list[UnifiedMember]:
         """
