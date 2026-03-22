@@ -109,6 +109,7 @@ class DiscordAdapter(PlatformAdapter):
         days: int = 1,
         max_count: int = 100,
         before_id: str | None = None,
+        since_ts: int | None = None,
     ) -> list[UnifiedMessage]:
         """
         从 Discord 频道异步拉取历史消息记录。
@@ -143,8 +144,11 @@ class DiscordAdapter(PlatformAdapter):
                 logger.warning(f"频道 {group_id} 不支持历史消息访问。")
                 return []
 
-            end_time = datetime.now()
-            start_time = end_time - timedelta(days=days)
+            if since_ts and since_ts > 0:
+                start_time = datetime.fromtimestamp(since_ts)
+            else:
+                end_time = datetime.now()
+                start_time = end_time - timedelta(days=days)
 
             messages = []
 
@@ -749,3 +753,39 @@ class DiscordAdapter(PlatformAdapter):
     ) -> dict[str, str | None]:
         """批量获取头像的最佳实践。"""
         return {uid: await self.get_user_avatar_url(uid, size) for uid in user_ids}
+
+    async def set_reaction(
+        self, group_id: str, message_id: str, emoji: str | int, is_add: bool = True
+    ) -> bool:
+        """
+        Discord 实现消息回应。
+        """
+        if not discord:
+            return False
+
+        try:
+            # 映射常见的表情 ID 为文字表情，使分析状态在跨平台保持一致
+            mapping = {289: "🔍", 424: "📊", 124: "✅"}
+            emoji_to_use = emoji
+            if isinstance(emoji, int) or (isinstance(emoji, str) and emoji.isdigit()):
+                emoji_to_use = mapping.get(int(emoji), emoji)
+
+            channel_id = int(group_id)
+            channel = self._discord_client.get_channel(channel_id)
+            if not channel:
+                channel = await self._discord_client.fetch_channel(channel_id)
+
+            if not hasattr(channel, "get_partial_message"):
+                # 如果较低版本的 SDK 没这个方法，则直接 fetch
+                msg = await channel.fetch_message(int(message_id))
+            else:
+                msg = channel.get_partial_message(int(message_id))
+
+            if is_add:
+                await msg.add_reaction(emoji_to_use)
+            else:
+                await msg.remove_reaction(emoji_to_use, self._discord_client.user)
+            return True
+        except Exception as e:
+            logger.debug(f"Discord set_reaction 失败: {e}")
+            return False

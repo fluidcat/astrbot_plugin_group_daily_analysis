@@ -169,6 +169,7 @@ class TelegramAdapter(PlatformAdapter):
         days: int = 1,
         max_count: int = 100,
         before_id: str | None = None,
+        since_ts: int | None = None,
     ) -> list[UnifiedMessage]:
         """
         获取历史消息。
@@ -190,7 +191,11 @@ class TelegramAdapter(PlatformAdapter):
                 except (TypeError, ValueError):
                     logger.warning(f"[Telegram] before_id invalid: {before_id}")
 
-            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+            if since_ts and since_ts > 0:
+                # 统一使用 UTC 以兼容数据库记录的时间存储
+                cutoff_time = datetime.fromtimestamp(since_ts, timezone.utc)
+            else:
+                cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             target_count = max(1, int(max_count))
             page_size = target_count
             current_page = 1
@@ -889,6 +894,50 @@ class TelegramAdapter(PlatformAdapter):
 
         pairs = await asyncio.gather(*(_fetch_avatar(uid) for uid in user_ids))
         return dict(pairs)
+
+    async def set_reaction(
+        self, group_id: str, message_id: str, emoji: str | int, is_add: bool = True
+    ) -> bool:
+        """
+        Telegram 实现消息回应。
+        """
+        client = self._telegram_client
+        if not client:
+            return False
+
+        try:
+            # 映射常见的表情 ID 为文字表情
+            mapping = {289: "🔍", 424: "📊", 124: "✅"}
+            emoji_to_use = emoji
+            if isinstance(emoji, int) or (isinstance(emoji, str) and emoji.isdigit()):
+                emoji_to_use = mapping.get(int(emoji), emoji)
+
+            chat_id, _ = self._parse_group_id(group_id)
+
+            # 只有开启了库支持且版本符合时才尝试。set_message_reaction 是 Bot API 7.0 (PTB 20.8+) 特性。
+            if hasattr(client, "set_message_reaction"):
+                try:
+                    from telegram import ReactionTypeEmoji
+
+                    reaction = [ReactionTypeEmoji(emoji=emoji_to_use)] if is_add else []
+                    await client.set_message_reaction(
+                        chat_id=chat_id,
+                        message_id=int(message_id),
+                        reaction=reaction,
+                    )
+                    return True
+                except ImportError:
+                    # 如果版本太低没有 ReactionTypeEmoji，尝试直接传字符串 (有些实现支持)
+                    await client.set_message_reaction(
+                        chat_id=chat_id,
+                        message_id=int(message_id),
+                        reaction=emoji_to_use if is_add else None,
+                    )
+                    return True
+            return False
+        except Exception as e:
+            logger.debug(f"[Telegram] set_reaction 失败: {e}")
+            return False
 
     # ==================== 辅助方法 ====================
 

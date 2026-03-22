@@ -79,6 +79,7 @@ class OneBotAdapter(PlatformAdapter):
         days: int = 1,
         max_count: int = 1000,
         before_id: str | None = None,
+        since_ts: int | None = None,
     ) -> list[UnifiedMessage]:
         """
         从 OneBot 后端拉取群组历史消息。
@@ -89,6 +90,7 @@ class OneBotAdapter(PlatformAdapter):
             days (int): 拉取过去几天的消息
             max_count (int): 最大拉取条数
             before_id (str, optional): 锚点消息 ID，用于分页回溯
+            since_ts (int, optional): 从指定时间戳开始拉取消息（Unix timestamp），优先级高于 days。
 
         Returns:
             list[UnifiedMessage]: 统一格式的消息列表
@@ -100,16 +102,21 @@ class OneBotAdapter(PlatformAdapter):
             chunk_size = 100  # 每次拉取 100 条，较为稳健
             all_raw_messages = []
 
-            end_time = datetime.now()
-            start_time = end_time - timedelta(days=days)
-            start_timestamp = int(start_time.timestamp())
+            # 确定回溯的起始时间点
+            if since_ts and since_ts > 0:
+                start_timestamp = since_ts
+            else:
+                end_time_dt = datetime.now()
+                start_time_dt = end_time_dt - timedelta(days=days)
+                start_timestamp = int(start_time_dt.timestamp())
 
-            # 使用 message_seq (在 NapCat 中通常可用 message_id 作为 seq 参数)
-            # 进行分页回溯拉取
+            # 使用 message_seq 或 message_id 进行分页回溯拉取
             current_anchor_id = before_id
 
             logger.info(
-                f"OneBot 开始分页回溯拉取消息: 群 {group_id}, 时间限制 {days}天, 数量限制 {max_count}"
+                f"OneBot 开始分页回溯消息: 群 {group_id}, "
+                f"起始时间 {datetime.fromtimestamp(start_timestamp).strftime('%Y-%m-%d %H:%M:%S')}, "
+                f"上限 {max_count} 条"
             )
 
             while len(all_raw_messages) < max_count:
@@ -169,7 +176,7 @@ class OneBotAdapter(PlatformAdapter):
                         continue
 
                     # 时间范围判定
-                    if start_timestamp <= msg_time <= int(end_time.timestamp()):
+                    if start_timestamp <= msg_time <= int(datetime.now().timestamp()):
                         all_raw_messages.append(raw_msg)
 
                 # 提取锚点。
@@ -184,19 +191,22 @@ class OneBotAdapter(PlatformAdapter):
                 )
                 mid_val = chunk_earliest_msg.get("message_id")
 
-                # 优先使用 seq_val (针对 LLBot)，如果没有则回退回 ID
+                # 重要修复：取消对 ID 的 -1 位移手动操作。
+                # 在 NapCat/NTQQ 中，ID 虽为数字但并不连续。-1 位移会导致“消息不存在”错误。
+                # 即使 API 返回的消息包含锚点本身，上方的 deduplication 逻辑也会将其排除，
+                # 保证翻页能正常向前推进。
                 new_anchor_id = seq_val if seq_val is not None else mid_val
 
-                # 如果时间已经超过限制，或者锚点没有变化（说明已经到底），则停止
-                if chunk_earliest_time < start_timestamp:
+                # 如果消息时间已到达起始点，或者锚点无法继续往前位移，则停止
+                if chunk_earliest_time <= start_timestamp:
                     logger.debug(
-                        f"OneBot 分页拉取：消息时间 ({chunk_earliest_time}) 早于起始时间 ({start_timestamp})，回溯完成。"
+                        f"OneBot 分页拉取：已到达起始时间 ({start_timestamp})，回溯同步完成。"
                     )
                     break
 
                 if current_anchor_id and str(new_anchor_id) == str(current_anchor_id):
                     logger.debug(
-                        "OneBot 分页拉取：消息锚点没有变化，可能已到达历史尽头。"
+                        "OneBot 分页拉取：消息锚点未发生有效位移，可能已到达历史尽头。"
                     )
                     break
 
@@ -1346,3 +1356,30 @@ class OneBotAdapter(PlatformAdapter):
 
         logger.info(f"[群分析相册] 未能找到名为 '{album_name}' 的相册 (群 {group_id})")
         return None
+
+    async def set_reaction(
+        self, group_id: str, message_id: str, emoji: str | int, is_add: bool = True
+    ) -> bool:
+        """
+        OneBot 实现消息回应 (set_msg_emoji_like)。
+        支持 Go-CQHTTP, NapCat, Lagrange 等 OneBot 实现。
+        """
+        try:
+            # 语义化映射：根据用户喜好精细化 OneBot 端的降级
+            emoji_id = str(emoji)
+            if str(emoji) == "🔍":
+                emoji_id = "289"  # 🫣 表情 (表示任务已接收)
+            elif str(emoji) == "📊":
+                emoji_id = "124"  # 👌 表情 (表示任务处理完成)
+
+            await self.bot.call_action(
+                "set_msg_emoji_like",
+                message_id=int(message_id),
+                emoji_id=emoji_id,
+                emoji_type="1",  # 还原为最稳定的系统表情类型
+                set=is_add,
+            )
+            return True
+        except Exception as e:
+            logger.debug(f"OneBot set_reaction 失败 (API 可能不支持): {e}")
+            return False
