@@ -108,7 +108,12 @@ class Wx857Adapter(PlatformAdapter):
     # ==================== IMessageRepository 实现 ====================
 
     async def fetch_messages(
-        self, group_id: str, days: int = 1, max_count: int = 1000, before_id: str | None = None
+        self,
+        group_id: str,
+        days: int = 1,
+        max_count: int = 100,
+        before_id: str | None = None,
+        since_ts: int | None = None,
     ) -> list[UnifiedMessage]:
         """
         获取历史消息
@@ -131,7 +136,11 @@ class Wx857Adapter(PlatformAdapter):
                 except (TypeError, ValueError):
                     pass
 
-            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+            if since_ts and since_ts > 0:
+                # 统一使用 UTC 以兼容数据库记录的时间存储
+                cutoff_time = datetime.fromtimestamp(since_ts, timezone.utc)
+            else:
+                cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             target_count = max(1, int(max_count))
             page_size = target_count
             current_page = 1
@@ -443,3 +452,9 @@ class Wx857Adapter(PlatformAdapter):
         if info:
             return info.get('SmallHeadImgUrl')
         return None
+
+    async def set_reaction(
+        self, group_id: str, message_id: str, emoji: str | int, is_add: bool = True
+    ) -> bool:
+        mapping = {289: "🔍", 424: "📊", 124: "✅"}
+        return await self.send_text(group_id=group_id, text=emoji)
