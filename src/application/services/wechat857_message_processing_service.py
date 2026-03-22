@@ -190,7 +190,19 @@ class WeChat857MessageProcessingService:
                     )
                     if url:
                         message_parts.append({"type": "image", "url": url})
-
+                    else:
+                        message_parts.append({"type": "plain", "text": "[图片]"})
+                # 视频消息
+                elif seg_type in ("Video", "video"):
+                    message_parts.append({"type": "plain", "text": "[视频]"})
+                # 图文分享消息
+                elif seg_type in ("Share", "share"):
+                    text_seg = []
+                    if title := getattr(seg, "title", "").strip():
+                        text_seg.append(title)
+                    if (content := getattr(seg, "content", "").strip()) and title != content:
+                        text_seg.append(content)
+                    message_parts.append({"type": "plain", "text": f"{', '.join(text_seg)}"})
                 # @提及
                 elif seg_type in ("At", "at"):
                     target = getattr(seg, "target", None) or getattr(seg, "user_id", None)
