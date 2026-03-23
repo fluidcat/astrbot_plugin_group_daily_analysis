@@ -2,7 +2,7 @@
 
 # 群聊日常分析插件
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v4.9.3-blue.svg?style=for-the-badge&color=76bad9)](https://github.com/SXP-Simon/astrbot-qq-group-daily-analysis)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v4.9.4-blue.svg?style=for-the-badge&color=76bad9)](https://github.com/SXP-Simon/astrbot-qq-group-daily-analysis)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SXP-Simon/astrbot_plugin_qq_group_daily_analysis) 
@@ -335,6 +335,16 @@ python scripts/debug_render.py -t retro_futurism -o my_output.html
 # 查看帮助信息
 python scripts/debug_render.py -h
 ```
+
+```
+uv run scripts\debug_render.py -t scrapbook -o debug_scrapbook.html
+uv run scripts\debug_render.py -t hack -o debug_hack.html
+uv run scripts\debug_render.py -t retro_futurism -o debug_retro.html
+uv run scripts\debug_render.py -t format -o debug_format.html
+uv run scripts\debug_render.py -t simple -o debug_simple.html
+uv run scripts\debug_render.py -t spring_festival -o debug_spring.html
+```
+
 
 **工具特性：**
 

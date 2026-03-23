@@ -15,7 +15,7 @@ from astrbot.api import AstrBotConfig
 from astrbot.api import logger as astrbot_logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.event.filter import PermissionType
-from astrbot.api.star import Context, Star
+from astrbot.api.star import Context, Star, StarTools
 from astrbot.core.message.components import File
 
 from .src.application.commands.template_command_service import (
@@ -88,7 +88,9 @@ class GroupDailyAnalysis(Star):
         self.bot_manager.set_context(context)
         self.bot_manager.set_plugin_instance(self)
         self.history_manager = HistoryManager(self)
-        self.report_generator = ReportGenerator(self.config_manager)
+        self.report_generator = ReportGenerator(
+            self.config_manager, StarTools.get_data_dir()
+        )
 
         # Telegram 注册表 (持久层)
         self.telegram_group_registry = TelegramGroupRegistry(self)
@@ -259,6 +261,8 @@ class GroupDailyAnalysis(Star):
             # 3. 释放实例属性引用 (使用 type: ignore 允许 None 赋值)
             self.auto_scheduler = None  # type: ignore
             self.bot_manager = None  # type: ignore
+            if self.report_generator:
+                await self.report_generator.close()
             self.report_generator = None  # type: ignore
             self.config_manager = None  # type: ignore
             self.message_processing_service = None  # type: ignore
@@ -576,7 +580,7 @@ class GroupDailyAnalysis(Star):
         output_format = self.config_manager.get_output_format()
 
         # 定义获取回调
-        async def avatar_getter(user_id: str) -> str | None:
+        async def avatar_url_getter(user_id: str) -> str | None:
             return await adapter.get_user_avatar_url(user_id)
 
         async def nickname_getter(user_id: str) -> str | None:
@@ -593,7 +597,7 @@ class GroupDailyAnalysis(Star):
                 analysis_result,
                 group_id,
                 self.html_render,
-                avatar_getter=avatar_getter,
+                avatar_url_getter=avatar_url_getter,
                 nickname_getter=nickname_getter,
             )
 
@@ -621,7 +625,7 @@ class GroupDailyAnalysis(Star):
             pdf_path = await self.report_generator.generate_pdf_report(
                 analysis_result,
                 group_id,
-                avatar_getter=avatar_getter,
+                avatar_url_getter=avatar_url_getter,
                 nickname_getter=nickname_getter,
             )
             if pdf_path:

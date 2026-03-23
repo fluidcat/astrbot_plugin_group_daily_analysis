@@ -21,8 +21,8 @@
             --accent-blue: #3399ff;
             /* Secondary */
             --accent-red: #ff3366;
-            --accent-green: #00ff88;
-            /* Reduced use */
+            --accent-green: #ff9900;
+            /* Changed to Orange per user request */
             --border-color: #2a2a2a;
             --grid-color: rgba(255, 255, 255, 0.03);
 
@@ -109,7 +109,7 @@
         }
 
         .light.green {
-            background: #27c93f;
+            background: #ff9900;
         }
 
         .window-title {
@@ -499,7 +499,7 @@
             display: flex;
             justify-content: space-between;
             font-family: var(--font-mono);
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             color: var(--text-secondary);
         }
 
@@ -543,17 +543,28 @@
                     </div>
                 </div>
 
+                {% if chat_quality_html %}
+                <div>
+                    <div class="section-header">
+                        <span class="prompt">$</span> analyze --quality
+                    </div>
+                    {{ chat_quality_html | safe }}
+                </div>
+                {% endif %}
+ 
                 <!-- Topics moved into left column -->
+                {% if topics_html %}
                 <div>
                     <div class="section-header">
                         <span class="prompt">$</span> ls ./topics
                     </div>
                     <div class="topic-list">
-                        {{topics_html}}
+                        {{topics_html | safe}}
                     </div>
                 </div>
+                {% endif %}
             </div>
-
+ 
             <!-- Right Side: Visuals & Members -->
             <div class="right-col">
                 <div class="window">
@@ -566,29 +577,33 @@
                         <div class="window-title">trend-analytics.tsx</div>
                     </div>
                     <div class="chart-container">
-                        {{hourly_chart_html}}
+                        {{hourly_chart_html | safe}}
                     </div>
                 </div>
-
+ 
                 <!-- User Titles grouped here -->
+                {% if titles_html %}
                 <div style="margin-top: 20px;">
                     <div class="section-header">
                         <span class="prompt">$</span> cat ./user_titles
                     </div>
                     <div class="user-grid">
-                        {{titles_html}}
+                        {{titles_html | safe}}
                     </div>
                 </div>
-
+                {% endif %}
+ 
                 <!-- Golden Quotes grouped here -->
+                {% if quotes_html %}
                 <div style="margin-top: 20px;">
                     <div class="section-header">
                         <span class="prompt">$</span> grep -r "golden_quotes"
                     </div>
                     <div class="quote-container">
-                        {{quotes_html}}
+                        {{quotes_html | safe}}
                     </div>
                 </div>
+                {% endif %}
             </div>
         </div>
 
