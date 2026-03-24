@@ -283,21 +283,7 @@ class TelethonAdapter(PlatformAdapter):
 
             # 获取发送者信息
             sender_id = str(raw_msg.sender_id) if raw_msg.sender_id else ""
-            sender_name = ""
-
-            if raw_msg.sender:
-                # 优先使用全名
-                if raw_msg.sender.first_name or raw_msg.sender.last_name:
-                    name_parts = []
-                    if raw_msg.sender.first_name:
-                        name_parts.append(raw_msg.sender.first_name)
-                    if raw_msg.sender.last_name:
-                        name_parts.append(raw_msg.sender.last_name)
-                    sender_name = " ".join(name_parts)
-                elif raw_msg.sender.username:
-                    sender_name = raw_msg.sender.username
-                else:
-                    sender_name = raw_msg.sender.first_name or ""
+            sender_name = raw_msg.sender.username or str(raw_msg.sender.id)
 
             return UnifiedMessage(
                 message_id=str(raw_msg.id),
