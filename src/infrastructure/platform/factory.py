@@ -96,5 +96,12 @@ def _register_adapters():
     except ImportError:
         pass
 
+    try:
+        from .adapters.telethon_adapter import TelethonAdapter
+
+        PlatformAdapterFactory.register("telethon_userbot", TelethonAdapter)
+    except ImportError:
+        pass
+
 
 _register_adapters()

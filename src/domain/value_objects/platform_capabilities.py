@@ -209,6 +209,32 @@ DISCORD_CAPABILITIES = PlatformCapabilities(
     avatar_sizes=(16, 32, 64, 128, 256, 512, 1024, 2048, 4096),
 )
 
+# Telethon (MTProto) - 不是 Bot API
+TELETHON_CAPABILITIES = PlatformCapabilities(
+    platform_name="telethon_userbot",
+    platform_version="mtproto_v2.x",
+    # 通过 PlatformMessageHistoryManager + 消息拦截器支持历史读取
+    supports_message_history=True,
+    max_message_history_days=7,
+    max_message_count=1000,
+    supports_group_list=True,
+    supports_group_info=True,
+    supports_member_list=True,
+    supports_member_info=True,
+    supports_text_message=True,
+    supports_image_message=True,
+    supports_file_message=True,
+    supports_forward_message=True,
+    supports_reply_message=True,
+    max_text_length=4096,
+    max_image_size_mb=50.0,
+    supports_edit=False,
+    supports_user_avatar=True,
+    supports_group_avatar=True,
+    avatar_needs_api_call=True,
+    avatar_sizes=(160, 320, 640),
+)
+
 # Slack Web API
 SLACK_CAPABILITIES = PlatformCapabilities(
     platform_name="slack",
@@ -236,6 +262,7 @@ PLATFORM_CAPABILITIES: dict[str, PlatformCapabilities] = {
     "aiocqhttp": ONEBOT_V11_CAPABILITIES,
     "onebot": ONEBOT_V11_CAPABILITIES,
     "telegram": TELEGRAM_CAPABILITIES,
+    "telethon": TELETHON_CAPABILITIES,
     "discord": DISCORD_CAPABILITIES,
     "slack": SLACK_CAPABILITIES,
 }
