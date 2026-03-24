@@ -529,6 +529,9 @@
                 <div>
                     <div class="comment">// main.ts</div>
                     <h1><span class="prompt">&gt;</span> Group Activity<br>Insights<span class="cursor"></span></h1>
+                    {% if group_name %}
+                    <h2>「{{ group_name }}」</h2>
+                    {% endif %}
                     <div class="comment" style="margin-bottom: 30px;">// Report for {{current_date}}</div>
 
                     <div class="code-block">

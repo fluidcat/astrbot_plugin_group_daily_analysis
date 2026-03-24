@@ -259,9 +259,11 @@ class ReportGenerator(IReportGenerator):
         stats = analysis_result["statistics"]
         topics = analysis_result["topics"]
         user_titles = analysis_result["user_titles"]
+        group_name = analysis_result.get("group_name", "")
+        group_name = f"\n「{group_name}」" if group_name else ""
 
         report = f"""
-🎯 群聊日常分析报告
+🎯 群聊日常分析报告{group_name}
 📅 {datetime.now().strftime("%Y年%m月%d日")}
 
 📊 基础统计
@@ -423,6 +425,7 @@ class ReportGenerator(IReportGenerator):
 
         # 准备最终渲染数据
         render_data = {
+            "group_name": analysis_result.get("group_name",""),
             "current_date": datetime.now().strftime("%Y年%m月%d日"),
             "current_datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "message_count": stats.message_count,

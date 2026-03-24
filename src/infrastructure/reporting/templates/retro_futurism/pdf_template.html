@@ -752,6 +752,9 @@
             </div>
             <div class="header-meta">System Report // {{current_date}}</div>
             <h1>Daily<br><span class="highlight">Analysis</span><br>Export</h1>
+            {% if group_name %}
+            <h2>「{{ group_name }}」</h2>
+            {% endif %}
             <div class="header-icons">
                 <div class="header-icon">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

@@ -1028,6 +1028,9 @@
             <div class="title-sticker">
                 <div class="tape"></div>
                 <h1>五彩斑斓的一天，来看看群里发生了什么吧！</h1>
+                {% if group_name %}
+                <h2>「{{ group_name }}」</h2>
+                {% endif %}
                 <div class="date-badge">{{current_date}}</div>
             </div>
         </div>

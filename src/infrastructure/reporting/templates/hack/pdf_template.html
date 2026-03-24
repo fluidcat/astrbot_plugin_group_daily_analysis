@@ -335,6 +335,9 @@
             <!-- Left Column: Insights & Topics -->
             <div class="left-col">
                 <div>
+                    {% if group_name %}
+                    <h2>「{{ group_name }}」</h2>
+                    {% endif %}
                     <div class="comment">// Report: {{current_date}}</div>
                     <h1><span class="prompt">&gt;</span> Daily Analysis</h1>
                     <div class="code-block">

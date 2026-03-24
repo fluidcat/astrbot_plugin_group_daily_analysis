@@ -448,6 +448,7 @@ class AutoScheduler:
             analysis_result = result["analysis_result"]
             adapter = result["adapter"]
 
+            analysis_result['group_name'] = group_name
             # 调度导出并发送报告
             await self.report_dispatcher.dispatch(
                 group_id,
