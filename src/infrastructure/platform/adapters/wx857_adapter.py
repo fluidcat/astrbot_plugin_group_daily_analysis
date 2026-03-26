@@ -3,6 +3,7 @@
 
 支持微信857平台的消息发送和基础信息查询功能。
 """
+import os
 from typing import Any, TYPE_CHECKING
 
 from astrbot.core.db import PlatformMessageHistory
@@ -340,9 +341,22 @@ class Wx857Adapter(PlatformAdapter):
     ) -> bool:
         mt = 'GroupMessage' if '@chatroom' in group_id else 'FriendMessage'
         ms = MessageSesion.from_str(f"{self._platform_id}:{mt}:{group_id}")
-        chain = MessageChain().url_image(image_path) if image_path.startswith(
-            ("http://", "https://")) else MessageChain().file_image(image_path)
-        await self._platform.send_by_session(ms, chain)
+        msg_chain = MessageChain()
+        if image_path.startswith("base64://"):
+            msg_chain.base64_image(image_path[len("base64://") :])
+        elif image_path.startswith("data:"):
+            parts = image_path.split(",", 1)
+            if len(parts) == 2:
+                msg_chain.base64_image(parts[1])
+        elif image_path.startswith(("http://", "https://")):
+            msg_chain.url_image(image_path)
+        elif os.path.exists(image_path):
+            msg_chain.file_image(image_path)
+        else:
+            logger.warning(f"unknown image type: {image_path[:200]}: ")
+            return True
+
+        await self._platform.send_by_session(ms, msg_chain)
         return True
 
     async def send_forward_msg(self, group_id: str, nodes: list[dict]) -> bool:
