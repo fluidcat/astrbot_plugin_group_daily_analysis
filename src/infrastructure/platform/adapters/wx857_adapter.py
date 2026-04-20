@@ -10,7 +10,7 @@ from astrbot.core.db import PlatformMessageHistory
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform import Platform
 from astrbot.core.platform.message_session import MessageSesion
-from .. import PlatformAdapter
+from ..base import PlatformAdapter
 from ...persistence.wechat857_member_cache import WeChat857MemberCache
 from ....domain.value_objects import PLATFORM_CAPABILITIES, PlatformCapabilities, UnifiedMessage, MessageContent, \
     MessageContentType, UnifiedGroup, UnifiedMember
