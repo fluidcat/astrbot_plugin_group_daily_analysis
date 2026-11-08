@@ -230,6 +230,7 @@ class TraceLogFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.trace_id = get_trace_id()
+        record.span_id = getattr(record, "span_id", "")
         return True
 
 
